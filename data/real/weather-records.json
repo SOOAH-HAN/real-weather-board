@@ -1,60 +1,14 @@
-import json
-import os
-import urllib.request
-from datetime import datetime, timedelta, timezone
-
-url = (
-    "https://api.open-meteo.com/v1/forecast"
-    "?latitude=36.3504"
-    "&longitude=127.3845"
-    "&current=temperature_2m"
-    "&timezone=Asia/Seoul"
-)
-
-# 1) 실제 데이터 조회
-with urllib.request.urlopen(url, timeout=10) as res:
-    data = json.load(res)
-
-print("원자료:", data)
-
-# 2) 필요한 값 꺼내기
-observed_at = data["current"]["time"]
-temperature = data["current"]["temperature_2m"]
-unit = data["current_units"]["temperature_2m"]
-
-# 3) 조회 시각과 날짜 키(한국 시간 기준)
-KST = timezone(timedelta(hours=9))
-fetched_at = datetime.now(KST).strftime("%Y-%m-%dT%H:%M")
-
-record = {
-    "date": fetched_at[:10],
-    "source": "Open-Meteo",
-    "source_url": url,
-    "observed_at": observed_at,
-    "fetched_at": fetched_at,
-    "timezone": "Asia/Seoul",
-    "temperature": temperature,
-    "unit": unit,
+{
+  "records": [
+    {
+      "date": "2026-10-06",
+      "source": "Open-Meteo",
+      "source_url": "https://api.open-meteo.com/v1/forecast?latitude=36.3504&longitude=127.3845&current=temperature_2m&timezone=Asia/Seoul",
+      "observed_at": "2026-10-06T10:15",
+      "fetched_at": "2026-10-06T10:27",
+      "timezone": "Asia/Seoul",
+      "temperature": 16.6,
+      "unit": "°C"
+    }
+  ]
 }
-
-# 4) 기록 파일 읽기 (없으면 새로 만들기)
-base = os.path.dirname(os.path.abspath(__file__))
-path = os.path.join(base, "data", "real", "weather-records.json")
-os.makedirs(os.path.dirname(path), exist_ok=True)
-
-db = {"records": []}
-if os.path.exists(path):
-    with open(path, encoding="utf-8") as f:
-        db = json.load(f)
-
-# 5) 같은 날짜 기록은 지우고 새로 추가 (하루 한 건만 유지)
-db["records"] = [r for r in db["records"] if r["date"] != record["date"]]
-db["records"].append(record)
-
-# 6) 저장
-with open(path, "w", encoding="utf-8") as f:
-    json.dump(db, f, ensure_ascii=False, indent=2)
-
-print("저장한 기록:", record)
-print("저장 위치:", path)
-print("기록 개수:", len(db["records"]))
