@@ -9,6 +9,16 @@
       "timezone": "Asia/Seoul",
       "temperature": 16.6,
       "unit": "°C"
+    },
+    {
+      "date": "2026-10-07",
+      "source": "Open-Meteo",
+      "source_url": "https://api.open-meteo.com/v1/forecast?latitude=36.3504&longitude=127.3845&current=temperature_2m&timezone=Asia/Seoul",
+      "observed_at": "2026-10-07T16:15",
+      "fetched_at": "2026-10-07T16:20",
+      "timezone": "Asia/Seoul",
+      "temperature": 21.5,
+      "unit": "°C"
     }
   ]
 }
