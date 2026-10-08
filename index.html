@@ -222,14 +222,14 @@ function lastNormal() {
 
 /* ---- 공개 합성 fixture 재생 (adapter-reset.example.js와 같은 상태 전이) ---- */
 const FXFILE = {SLOW:"timeout", DENIED:"auth-401", RATE:"rate-429", OFFLINE:"offline", FORMAT:"schema-break"};
-const ERRKEY = {timeout:"SLOW", auth:"DENIED", rate_limit:"RATE", offline:"OFFLINE", schema_error:"FORMAT"};
+const ERRMAP = {timeout:"SLOW", auth:"DENIED", rate_limit:"RATE", offline:"OFFLINE", schema_error:"FORMAT"};
 const LIVECODE = {SLOW:"timeout", DENIED:"auth", RATE:"rate_limit", OFFLINE:"offline", FORMAT:"schema_error", HTTP:"schema_error"};
-const NKEYS = ["signal_id","normalized_value","unit","source_name","source_url","source_time","fetched_at","record_timezone","record_date"];
+const FIELDS = ["signal_id","normalized_value","unit","source_name","source_url","source_time","fetched_at","record_timezone","record_date"];
 const kstDate = iso => { const p = Object.fromEntries(new Intl.DateTimeFormat("en", {timeZone: TZ, year:"numeric", month:"2-digit", day:"2-digit"}).formatToParts(new Date(iso)).map(x => [x.type, x.value])); return p.year + "-" + p.month + "-" + p.day; };
 function validateReading(r) {
   const bad = () => { throw new TypeError("invalid reading"); };
   if (!r || typeof r !== "object" || Array.isArray(r)) bad();
-  if (Object.keys(r).sort().join() !== NKEYS.slice().sort().join()) bad();
+  if (Object.getOwnPropertyNames(r).sort().join() !== FIELDS.slice().sort().join()) bad();
   if (!/^[a-z0-9][a-z0-9._-]*$/.test(r.signal_id)) bad();
   if (typeof r.normalized_value !== "number" || !isFinite(r.normalized_value)) bad();
   for (const f of ["unit", "source_name"]) if (typeof r[f] !== "string" || !r[f].trim()) bad();
@@ -281,7 +281,7 @@ function showReplay() {
   if (st.status.freshness === "fresh") {
     renderNow({temperature: st.current.normalized_value, unit: st.current.unit, observed_at: srcT(st.current.source_time),
                fetched_at: st.current.fetched_at, synthetic: true}, null);
-  } else renderNow(null, new Fail(ERRKEY[st.status.error_code]));
+  } else renderNow(null, new Fail(ERRMAP[st.status.error_code]));
   const c = st.current, last = c ? c.normalized_value + " " + c.unit : "없음";
   $("#test").innerHTML = '<div class="panel test"><span class="n">합성 시험 재생 · 실제 기록과 분리</span>' +
     '<p><b>freshness: ' + st.status.freshness + ' · error_code: ' + st.status.error_code + '</b></p>' +
