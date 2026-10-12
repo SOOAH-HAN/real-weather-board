@@ -64,7 +64,6 @@ h2 svg{color:var(--blue)}
 .row .dt{font-size:14px;font-weight:600}.row .dt span{color:var(--mute);font-weight:500;margin-left:6px}
 .row .k{display:block;font-size:12.5px;color:var(--mute)}.row .v{font-size:13.5px;font-weight:600}
 .badge{display:inline-block;margin-left:8px;border-radius:999px;background:#E2E9F5;color:#34476B;font-size:11.5px;font-weight:700;padding:2px 10px}
-.row .u{grid-column:1/-1;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--blue);word-break:break-all}
 .gal{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px}
 .gal button{border:0;border-radius:22px;padding:14px 6px 16px;font:700 13.5px var(--sans);color:var(--ink);cursor:pointer}
 .gal small{display:block;font-weight:500;font-size:12.5px;margin-top:2px}
@@ -74,6 +73,7 @@ h2 svg{color:var(--blue)}
 .foot .info{display:flex;align-items:center;gap:10px;background:#EAF2FF;border-radius:14px;padding:12px 16px;max-width:430px}
 .foot .info svg{color:var(--blue)}
 .sig{font:600 1.6rem/1.2 "Nanum Pen Script","Segoe Script","Brush Script MT",cursive;font-style:italic;color:var(--blue)}
+.dly{width:100%;border-collapse:collapse;font-size:14px;margin-top:10px}.dly th,.dly td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line)}.dly th{color:var(--mute);font-weight:600;font-size:13px}
 .test b{font-size:16px}.test p{margin:4px 0 0;font-size:14px;color:var(--mute)}
 .test button.act{margin-top:12px;padding:9px 20px;font-size:14px}
 @media (prefers-reduced-motion:no-preference){.gal button{transition:transform .15s}.gal button:hover{transform:translateY(-4px)}}
@@ -112,6 +112,7 @@ h2 svg{color:var(--blue)}
   <section class="panel">
     <div class="ph"><h2 id="h-gal"></h2><span class="n">누르면 공개 합성 fixture(test-data/fixtures)를 재생해요. 실제 기록은 바뀌지 않아요.</span></div>
     <div class="gal" id="gal"></div>
+    <button type="button" class="act" id="daily">일별 저장 시험 재생 (같은 날 3번 + 다음 날 1번)</button>
     <div class="foot">
       <div class="info" id="legend"></div>
       <span>출처 Open-Meteo · 시간대 Asia/Seoul</span>
@@ -223,14 +224,14 @@ function lastNormal() {
 
 /* ---- 공개 합성 fixture 재생 (adapter-reset.example.js와 같은 상태 전이) ---- */
 const FXFILE = {SLOW:"timeout", DENIED:"auth-401", RATE:"rate-429", OFFLINE:"offline", FORMAT:"schema-break"};
-const ERRKEY = {timeout:"SLOW", auth:"DENIED", rate_limit:"RATE", offline:"OFFLINE", schema_error:"FORMAT"};
+const ERRMAP = {timeout:"SLOW", auth:"DENIED", rate_limit:"RATE", offline:"OFFLINE", schema_error:"FORMAT"};
 const LIVECODE = {SLOW:"timeout", DENIED:"auth", RATE:"rate_limit", OFFLINE:"offline", FORMAT:"schema_error", HTTP:"schema_error"};
-const NKEYS = ["signal_id","normalized_value","unit","source_name","source_url","source_time","fetched_at","record_timezone","record_date"];
+const FIELDS = ["signal_id","normalized_value","unit","source_name","source_url","source_time","fetched_at","record_timezone","record_date"];
 const kstDate = iso => { const p = Object.fromEntries(new Intl.DateTimeFormat("en", {timeZone: TZ, year:"numeric", month:"2-digit", day:"2-digit"}).formatToParts(new Date(iso)).map(x => [x.type, x.value])); return p.year + "-" + p.month + "-" + p.day; };
 function validateReading(r) {
   const bad = () => { throw new TypeError("invalid reading"); };
   if (!r || typeof r !== "object" || Array.isArray(r)) bad();
-  if (Object.keys(r).sort().join() !== NKEYS.slice().sort().join()) bad();
+  if (Object.getOwnPropertyNames(r).sort().join() !== FIELDS.slice().sort().join()) bad();
   if (!/^[a-z0-9][a-z0-9._-]*$/.test(r.signal_id)) bad();
   if (typeof r.normalized_value !== "number" || !isFinite(r.normalized_value)) bad();
   for (const f of ["unit", "source_name"]) if (typeof r[f] !== "string" || !r[f].trim()) bad();
@@ -277,12 +278,32 @@ async function recoverReplay() {
   try { const f = await fxLoad("recover-d2"); ev.st = evApply(ev.st, f); ev.steps.push(f.fixture_id); showReplay(); }
   catch (e) { $("#test").innerHTML = '<div class="panel test"><b>시험 파일을 읽지 못했어요</b></div>'; }
 }
+
+async function runDaily() {
+  try {
+    let st = evReset(); const out = [];
+    const seq = [["normal-d1-a", "같은 날 1번째"], ["normal-d1-b", "같은 날 2번째"], ["normal-d1-b", "같은 날 3번째 (재실행)"], ["normal-d2", "다음 날"]];
+    for (const [n, label] of seq) {
+      const f = await fxLoad(n); st = evApply(st, f);
+      out.push('<tr><td>' + label + '</td><td>' + esc(f.fixture_id) + '</td><td>' + esc(st.current.record_date) + '</td><td><b>' + st.rows.length + '건</b></td><td>' + esc(st.current.normalized_value + " " + st.current.unit) + '</td></tr>');
+    }
+    ev = null;
+    $("#test").innerHTML = '<div class="panel test"><span class="n">합성 시계로 시험 · 실제 기록과 분리</span>' +
+      '<p><b>같은 날짜에 여러 번 성공해도 일별 기록은 1건, 다음 날짜는 새 행이 생겨요</b></p>' +
+      '<table class="dly"><tr><th>단계</th><th>fixture</th><th>합성 날짜</th><th>일별 기록 수</th><th>저장값</th></tr>' + out.join("") + '</table>' +
+      '<p>재생 순서: reset → D1-A → D1-B → D1-B(재실행) → D2 · 실제 기록(data/real)은 바뀌지 않아요.</p>' +
+      '<button type="button" class="act" id="exitTest">실제 조회로 돌아가기</button></div>';
+    $("#exitTest").onclick = () => load();
+    window.scrollTo(0, 0);
+  } catch (e) { $("#test").innerHTML = '<div class="panel test"><b>시험 파일을 읽지 못했어요</b><p>test-data/fixtures 폴더가 저장소에 있는지 확인해 주세요.</p></div>'; }
+}
+
 function showReplay() {
   const st = ev.st;
   if (st.status.freshness === "fresh") {
     renderNow({temperature: st.current.normalized_value, unit: st.current.unit, observed_at: srcT(st.current.source_time),
                fetched_at: st.current.fetched_at, synthetic: true}, null);
-  } else renderNow(null, new Fail(ERRKEY[st.status.error_code]));
+  } else renderNow(null, new Fail(ERRMAP[st.status.error_code]));
   const c = st.current, last = c ? c.normalized_value + " " + c.unit : "없음";
   $("#test").innerHTML = '<div class="panel test"><span class="n">합성 시험 재생 · 실제 기록과 분리</span>' +
     '<p><b>freshness: ' + st.status.freshness + ' · error_code: ' + st.status.error_code + '</b></p>' +
@@ -365,8 +386,7 @@ function renderRecords() {
     const src = /^https:\/\//.test(r.source_url) ? '<a href="' + esc(r.source_url) + '" target="_blank" rel="noopener">Open-Meteo</a>' : "Open-Meteo";
     return '<div class="row"><div class="main"><span class="dt">' + esc(dot(r.date)) + '<span>' + esc(dot(r.fetched_at).slice(11, 16)) + '</span><i class="badge">SAVED</i></span>' +
       '<div><b>' + esc(Number(r.temperature).toFixed(1)) + esc(r.unit) + '</b></div></div>' +
-      cell("출처", src) + cell("출처 시각", esc(dot(r.observed_at))) + cell("조회 시각", esc(dot(r.fetched_at))) + cell("단위", esc(r.unit)) +
-      (/^https:\/\//.test(r.source_url) ? '<a class="u" href="' + esc(r.source_url) + '" target="_blank" rel="noopener">' + esc(r.source_url) + '</a>' : '<span class="u">' + esc(r.source_url) + '</span>') + '</div>';
+      cell("출처", src) + cell("출처 시각", esc(dot(r.observed_at))) + cell("조회 시각", esc(dot(r.fetched_at))) + cell("단위", esc(r.unit)) + '</div>';
   }).join("");
 }
 
@@ -398,6 +418,7 @@ $("#legend").innerHTML = ic("info") + '<span>FRESH / STALE / SLOW / RATE LIMIT /
 const GAL = [["SLOW","응답이 느려요"],["RATE","호출 제한이에요"],["OFFLINE","연결이 안 돼요"],["DENIED","접근이 거부됐어요"],["FORMAT","형식이 달라졌어요"]];
 $("#gal").innerHTML = GAL.map(g => '<button type="button" class="k-' + g[0] + '" data-c="' + g[0] + '">' + mascot(g[0]) + MSG[g[0]][0] + '<small>' + g[1] + '</small></button>').join("");
 $("#gal").onclick = e => { const b = e.target.closest("button"); if (!b) return; runReplay(b.dataset.c); window.scrollTo(0, 0); };
+$("#daily").onclick = runDaily;
 renderTiles(null);
 loadRecords().then(() => replay ? runReplay(replay) : load());
 </script>
